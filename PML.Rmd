@@ -1,0 +1,122 @@
+# Practical Machine Learning Assignment
+Ravishankar Doejode - January 31st, 2016.
+## Synopsis
+The goal of the analysis described in the document is to predict the way people performed barbell lifts by training/testing different prediction models on  data from accelerometers of the wearable fitness monitoring devices. The prediction is done using models from different Machine Learning techniques. Per the details on the data, the data is from the wearable devices on the belt, forearm, arm, and dumbell of 6 participants. The list below shows 5 different ways,correctly and incorrectly, the barbell lifts were done. 
+
+- Class A:Exactly according to the specification 
+- Class B:Throwing the elbows to the front
+- Class C:Lifting the dumbbell only halfway
+- Class D:Lowering the dumbbell only halfway
+- Class E:Throwing the hips to the front
+
+## Data Processing
+All the required libaries are loaded using the R code below. The training (pml-training.csv) and testing data (pml-testing.csv) is also loaded with the code below. The testing data (dataframe is "testing_Quiz") will be used to answer the quiz questions.
+```{r, message=FALSE,warning=FALSE}
+library(ggplot2)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(MASS)
+library(party)
+library(caret)
+
+
+setwd("/Users/bdcoe/Documents/r/coursera/MachineLearning/Project")
+training <-read.csv("pml-training.csv",header=TRUE,na.strings=c("NA","#DIV/0!", ""))
+testing_Quiz <- read.csv("pml-testing.csv",header=TRUE,na.strings=c("NA","#DIV/0!", ""))
+dim(training)
+
+```
+
+
+The training data has 19,622 observations with 160 different variables. The varible <b>"classe"</b> has the way (A-E) the lifting was performed. A whole bunch of variables have only NAs for value. It would make sense to just drop all the columns that have just the NA values. Columns 1 through 7 have data that is not needed with the analysis. The code below gets rid of NAs filled columns and columns 1 through 7.
+
+```{r }
+training<-training[,colSums(is.na(training)) == 0]
+training<-training[,-c(1:7)]
+
+testing_Quiz<-testing_Quiz[,colSums(is.na(testing_Quiz)) == 0]
+testing_Quiz<-testing_Quiz[,-c(1:7)]
+dim(training)
+dim(testing_Quiz)
+```
+
+The seed is set to 1214. Setting the seed will allow for reproducibility of the results. We will make a train and test dataset with a 70 and 30 split. The train dataset will be used to train the model and test dataset will be used to do the cross validation.
+
+```{r}
+set.seed(1214)
+Intrain<-createDataPartition(training$classe,p=0.7,list=FALSE)
+
+train<-training[Intrain,]
+test<-training[-Intrain,]
+```
+## Machine Learning Modeling
+With this PML dataset, we are required to predict the <b>"classe"</b> of the barbell lift. We need a classification model and not any of the other models (Scoring, ranking, clustering). Recursive partitioning, conditional inference trees and random forest are some of the models we could look at using. With the classification model, the most important measure of classifier quality is accuracy. Accuracy could be measured by using confusion matrix tool. We will be using confusion matrix to assess the quality of each of the models  
+
+We will finally use the best model to answer the submission quiz questions.
+
+## Recursive Partitioning and Regression Trees
+We will start with recursive partitioning 
+```{r}
+modelrpart <- rpart(classe ~ ., data=train, method="class")
+predictionrpart <- predict(modelrpart, test, type = "class")
+confusionMatrix(predictionrpart, test$classe)
+table(predictionrpart, test$classe)
+```
+Recursive partiioning yielded an accuracey of 0.732. Below is the tree plot.
+
+```{r}
+rpart.plot(modelrpart, main="Recursive Partitioning Tree")
+```
+
+
+We will press on with the other models.
+
+## Conditional Inference Trees
+We will next use conditional inference tree
+```{r}
+modelctree <- ctree(classe ~ ., data=train)
+predictionctree <- predict(modelctree, test)
+confusionMatrix(predictionctree, test$classe)
+table(predictionctree, test$classe)
+```
+Conditional Inference tree yielded an accuracy of 0.8817. We will finally use random forest to see if accuracy of prediction could be improved upon.
+ 
+## Random Forest 
+```{r}
+modelrf <- randomForest(classe ~ ., data=train, method="class")
+predictionrf <- predict(modelrf, test, type = "class")
+confusionMatrix(predictionrf, test$classe)
+table(predictionrf, test$classe)
+```
+
+```{r}
+plot(modelrf, main="Random Forest - Error/Trees Plot")
+```
+
+Random forest yielded an accuracy of 0.9976. This is the best accuracy of all the three models we have tried so far. Recursive partitioning and conditional inference tree yielded an accuracy of 0.732 and 0.8817 respectively.
+
+Ther error/trees plot above shows that the error rate plateaus after about 20 trees. Hard coding the number of trees with random forest will will produce more or less the same model and prediction results.
+
+
+### Out of sample error
+Out of sample error is  1 - accuracy, which is 0.0024 if we go with random forest model.
+
+### Appliying the model on the final test data
+Things get any better than an accuracy of 0.9976 and we will stop here and use the model on the testing_Quiz data to find the <b>"classe"</b> for this test data set.
+```{r}
+dim(testing_Quiz)
+```
+
+We have about 20 observations with the testing data that will be used to answer the quiz questions.
+```{r}
+predictTest<-predict(modelrf,testing_Quiz,type="class")
+predictTest
+```
+
+
+### Reference
+
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#sbia_paper_section#ixzz3yhDQ8tUe
